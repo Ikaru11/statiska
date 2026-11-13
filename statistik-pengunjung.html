@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Statistik Pengunjung</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,600;12..96,800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#EDF1EE; --panel:#FFFFFF; --ink:#13231E; --muted:#5E6F68; --line:#D3DBD6;
+  --accent:#2447D6; --accent2:#E8A317; --bar:#2447D6; --barhi:#E8A317;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#0F1A17; --panel:#17261F; --ink:#E7EFEA; --muted:#8FA39A; --line:#2A3C34;
+    --accent:#7C98FF; --accent2:#F2B84B; --bar:#7C98FF; --barhi:#F2B84B;
+  }
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{font-family:'Bricolage Grotesque',system-ui,sans-serif;background:var(--bg);color:var(--ink);line-height:1.45;padding:20px 16px 48px}
+main{max-width:860px;margin:0 auto}
+h1{font-size:1.5rem;font-weight:800;margin:0 0 4px;letter-spacing:-.01em}
+.sub{color:var(--muted);margin:0 0 20px;font-size:.95rem}
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap}
+button,.btn{font:inherit;cursor:pointer;border:1px solid var(--line);background:var(--panel);color:var(--ink);padding:8px 14px;border-radius:8px}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff;font-weight:600}
+.range{display:inline-flex;gap:6px}
+.range button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.live{display:flex;align-items:baseline;gap:14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px 20px;margin-bottom:12px}
+.live .n{font-size:3.4rem;font-weight:800;line-height:1;color:var(--accent);letter-spacing:-.03em}
+.live .t{color:var(--muted)}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:12px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+.stat b{display:block;font-size:1.7rem;font-weight:800;letter-spacing:-.02em}
+.stat span{color:var(--muted);font-size:.88rem}
+section.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:12px}
+h2{font-size:1rem;font-weight:600;margin:0 0 12px}
+.chart{overflow-x:auto}
+svg{display:block;width:100%;height:auto;min-width:420px}
+table{width:100%;border-collapse:collapse;font-size:.93rem}
+th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line)}
+th{font-weight:600;color:var(--muted)}
+td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+.tablewrap{overflow-x:auto}
+.empty{color:var(--muted);padding:8px 0}
+.setup{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:18px}
+.setup ol{padding-left:20px;margin:8px 0 14px}
+.setup li{margin-bottom:8px}
+input[type=text],textarea{width:100%;font:inherit;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+textarea{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.82rem;min-height:130px}
+code,pre{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.82rem}
+pre{background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;overflow-x:auto;margin:6px 0}
+.row{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.msg{color:var(--muted);font-size:.88rem;margin-top:8px}
+.err{color:#C0392B}
+[hidden]{display:none!important}
+@media (max-width:520px){.stats{grid-template-columns:1fr 1fr}.live .n{font-size:2.8rem}}
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div>
+      <h1>Statistik pengunjung</h1>
+      <p class="sub" id="status">Data disimpan di database gratis milikmu sendiri, tanpa batas 6 jam.</p>
+    </div>
+    <div class="row" style="margin-top:0">
+      <span class="range" role="group" aria-label="Rentang waktu">
+        <button data-d="7" aria-pressed="true">7 hari</button>
+        <button data-d="30" aria-pressed="false">30 hari</button>
+        <button data-d="90" aria-pressed="false">90 hari</button>
+      </span>
+      <button id="refresh">Muat ulang</button>
+      <button id="settings">Pengaturan</button>
+    </div>
+  </div>
+
+  <!-- PENGATURAN -->
+  <div class="setup" id="setup" hidden>
+    <h2>Pasang dalam 5 menit (gratis, tanpa kartu kredit)</h2>
+    <ol>
+      <li>Buka <b>console.firebase.google.com</b>, buat proyek baru (matikan Google Analytics, tidak perlu).</li>
+      <li>Menu <b>Build → Realtime Database → Create Database</b>. Pilih lokasi Singapore, mulai dengan <i>locked mode</i>.</li>
+      <li>Buka tab <b>Rules</b>, ganti isinya dengan ini lalu <b>Publish</b>:
+<pre id="rules">{
+  "rules": {
+    "visits": {
+      ".read": true,
+      "$id": {
+        ".write": "!data.exists()",
+        ".validate": "newData.hasChildren(['t','s','p','v'])"
+      }
+    }
+  }
+}</pre>
+      </li>
+      <li>Salin alamat database (bentuknya <code>https://nama-proyek-default-rtdb.asia-southeast1.firebasedatabase.app</code>) dan tempel di bawah.</li>
+    </ol>
+    <label for="dburl"><b>Alamat database</b></label>
+    <input type="text" id="dburl" placeholder="https://nama-proyek-default-rtdb....firebasedatabase.app" autocomplete="off">
+    <div class="row"><button class="primary" id="save">Simpan dan tampilkan data</button></div>
+    <p class="msg" id="setupmsg"></p>
+
+    <div id="snippetbox" hidden>
+      <h2 style="margin-top:18px">Kode pelacak</h2>
+      <p class="msg" style="margin-top:0">Tempel kode ini sebelum <code>&lt;/body&gt;</code> di setiap game atau halaman yang mau dihitung pengunjungnya. Satu kode bisa dipakai di semua situsmu; dashboard memisahkan per alamat situs.</p>
+      <textarea id="snippet" readonly></textarea>
+      <div class="row"><button id="copy">Salin kode</button></div>
+    </div>
+  </div>
+
+  <!-- DASHBOARD -->
+  <div id="dash" hidden>
+    <div class="live"><div class="n" id="now">0</div><div class="t">orang aktif dalam 5 menit terakhir</div></div>
+    <div class="stats">
+      <div class="stat"><b id="sToday">0</b><span>Kunjungan hari ini</span></div>
+      <div class="stat"><b id="sViews">0</b><span>Total kunjungan</span></div>
+      <div class="stat"><b id="sUniq">0</b><span>Pengunjung unik</span></div>
+    </div>
+    <section class="card">
+      <h2>Kunjungan per hari</h2>
+      <div class="chart"><svg id="chart" role="img" aria-label="Grafik kunjungan per hari"></svg></div>
+    </section>
+    <section class="card">
+      <h2>Situs dan halaman terpopuler</h2>
+      <div class="tablewrap"><table>
+        <thead><tr><th>Halaman</th><th class="num">Kunjungan</th><th class="num">Unik</th></tr></thead>
+        <tbody id="pages"></tbody>
+      </table></div>
+    </section>
+  </div>
+</main>
+
+<script>
+(function(){
+  var KEY='dbUrlPengunjung';
+  var days=7, timer=null;
+  var $=function(id){return document.getElementById(id)};
+  var store={
+    get:function(){try{return localStorage.getItem(KEY)||''}catch(e){return ''}},
+    set:function(v){try{localStorage.setItem(KEY,v)}catch(e){}}
+  };
+
+  function cleanUrl(u){return (u||'').trim().replace(/\/+$/,'').replace(/\.json$/,'')}
+  function validUrl(u){return /^https:\/\/[a-z0-9.-]+\.(firebaseio\.com|firebasedatabase\.app)$/i.test(u)}
+
+  function snippetFor(url){
+    return '<script>\n(function(){\n  var h=location.hostname;\n  if(h==="localhost"||h==="127.0.0.1")return;\n  var id;\n  try{id=localStorage.getItem("vid");if(!id){id=Math.random().toString(36).slice(2)+Date.now().toString(36);localStorage.setItem("vid",id)}}catch(e){id="anon"}\n  fetch("'+url+'/visits.json",{\n    method:"POST",\n    body:JSON.stringify({t:Date.now(),s:h,p:location.pathname,v:id}),\n    keepalive:true\n  }).catch(function(){});\n})();\n<\/script>';
+  }
+
+  function showSetup(show){
+    $('setup').hidden=!show;
+    if(show){
+      var u=store.get();
+      $('dburl').value=u;
+      if(u){$('snippet').value=snippetFor(u);$('snippetbox').hidden=false}
+    }
+  }
+
+  function startOfDay(ts){var d=new Date(ts);d.setHours(0,0,0,0);return d.getTime()}
+  function fmt(n){return n.toLocaleString('id-ID')}
+
+  async function load(){
+    var url=store.get();
+    if(!url){showSetup(true);$('dash').hidden=true;return}
+    $('status').textContent='Memuat data...';
+    $('status').classList.remove('err');
+    try{
+      var res=await fetch(url+'/visits.json?orderBy=%22%24key%22&limitToLast=20000');
+      if(!res.ok)throw new Error('HTTP '+res.status);
+      var data=await res.json();
+      var list=data?Object.keys(data).map(function(k){return data[k]}):[];
+      render(list);
+      $('dash').hidden=false;
+      $('status').textContent='Diperbarui '+new Date().toLocaleTimeString('id-ID')+' · data tersimpan permanen di databasemu';
+    }catch(e){
+      $('status').textContent='Gagal memuat data. Cek alamat database dan Rules di Pengaturan.';
+      $('status').classList.add('err');
+      $('dash').hidden=true;
+      showSetup(true);
+    }
+  }
+
+  function render(all){
+    var now=Date.now();
+    var todayStart=startOfDay(now);
+    var from=todayStart-(days-1)*86400000;
+    var list=all.filter(function(x){return x&&typeof x.t==='number'&&x.t>=from});
+
+    $('now').textContent=fmt(new Set(all.filter(function(x){return x&&x.t>=now-300000}).map(function(x){return x.v})).size);
+    $('sToday').textContent=fmt(list.filter(function(x){return x.t>=todayStart}).length);
+    $('sViews').textContent=fmt(list.length);
+    $('sUniq').textContent=fmt(new Set(list.map(function(x){return x.v})).size);
+
+    // grafik
+    var buckets=[];
+    for(var i=0;i<days;i++)buckets.push({t:from+i*86400000,n:0});
+    list.forEach(function(x){
+      var idx=Math.floor((startOfDay(x.t)-from)/86400000);
+      if(buckets[idx])buckets[idx].n++;
+    });
+    var max=Math.max.apply(null,buckets.map(function(b){return b.n}).concat([1]));
+    var W=Math.max(420,days*(days>30?9:days>7?16:56)),H=190,pb=26,pt=14,gap=days>30?2:4;
+    var bw=(W-gap*(days-1))/days;
+    var out='';
+    buckets.forEach(function(b,i){
+      var h=Math.round((H-pb-pt)*b.n/max);
+      var x=i*(bw+gap),y=H-pb-h;
+      var last=i===days-1;
+      out+='<rect x="'+x.toFixed(1)+'" y="'+y+'" width="'+bw.toFixed(1)+'" height="'+Math.max(h,b.n?2:0)+'" rx="2" fill="'+(last?'var(--barhi)':'var(--bar)')+'"><title>'+new Date(b.t).toLocaleDateString('id-ID',{day:'numeric',month:'short'})+': '+b.n+' kunjungan</title></rect>';
+      var showLabel=days<=7||(days<=30&&i%5===0)||(days>30&&i%10===0)||last;
+      if(showLabel)out+='<text x="'+(x+bw/2).toFixed(1)+'" y="'+(H-8)+'" text-anchor="middle" font-size="10.5" fill="var(--muted)">'+new Date(b.t).toLocaleDateString('id-ID',{day:'numeric',month:'short'})+'</text>';
+      if(b.n&&(days<=7||b.n===max))out+='<text x="'+(x+bw/2).toFixed(1)+'" y="'+(y-4)+'" text-anchor="middle" font-size="10.5" fill="var(--ink)">'+b.n+'</text>';
+    });
+    out+='<line x1="0" x2="'+W+'" y1="'+(H-pb)+'" y2="'+(H-pb)+'" stroke="var(--line)"/>';
+    var svg=$('chart');
+    svg.setAttribute('viewBox','0 0 '+W+' '+H);
+    svg.style.minWidth=Math.min(W,860)+'px';
+    svg.innerHTML=out;
+
+    // halaman terpopuler
+    var map={};
+    list.forEach(function(x){
+      var k=(x.s||'?')+(x.p||'/');
+      var o=map[k]||(map[k]={n:0,u:new Set()});
+      o.n++;o.u.add(x.v);
+    });
+    var rows=Object.keys(map).sort(function(a,b){return map[b].n-map[a].n}).slice(0,15);
+    var tb=$('pages');
+    tb.innerHTML='';
+    if(!rows.length){
+      var tr=document.createElement('tr'),td=document.createElement('td');
+      td.colSpan=3;td.className='empty';td.textContent='Belum ada kunjungan. Pasang kode pelacak di situsmu, lalu buka situsnya sekali.';
+      tr.appendChild(td);tb.appendChild(tr);
+    }
+    rows.forEach(function(k){
+      var tr=document.createElement('tr');
+      [k,fmt(map[k].n),fmt(map[k].u.size)].forEach(function(v,i){
+        var td=document.createElement('td');
+        if(i)td.className='num';
+        td.textContent=v;tr.appendChild(td);
+      });
+      tb.appendChild(tr);
+    });
+  }
+
+  document.querySelectorAll('.range button').forEach(function(b){
+    b.addEventListener('click',function(){
+      days=+b.dataset.d;
+      document.querySelectorAll('.range button').forEach(function(x){x.setAttribute('aria-pressed',x===b?'true':'false')});
+      load();
+    });
+  });
+  $('refresh').addEventListener('click',load);
+  $('settings').addEventListener('click',function(){showSetup($('setup').hidden)});
+  $('save').addEventListener('click',function(){
+    var u=cleanUrl($('dburl').value);
+    if(!validUrl(u)){
+      $('setupmsg').textContent='Alamat belum benar. Harus diawali https:// dan berakhir firebasedatabase.app atau firebaseio.com.';
+      $('setupmsg').classList.add('err');return;
+    }
+    $('setupmsg').classList.remove('err');
+    $('setupmsg').textContent='Tersimpan.';
+    store.set(u);
+    $('snippet').value=snippetFor(u);
+    $('snippetbox').hidden=false;
+    load();
+  });
+  $('copy').addEventListener('click',function(){
+    var ta=$('snippet');ta.select();
+    try{navigator.clipboard.writeText(ta.value)}catch(e){document.execCommand('copy')}
+    $('copy').textContent='Tersalin';
+    setTimeout(function(){$('copy').textContent='Salin kode'},1500);
+  });
+
+  load();
+  timer=setInterval(function(){if(!document.hidden&&store.get())load()},30000);
+})();
+</script>
+</body>
+</html>
